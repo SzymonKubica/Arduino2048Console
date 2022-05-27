@@ -22,49 +22,45 @@ int **grid;
 int score = 0;
 int occupiedTiles = 0;
 
-void draw(int grid[4][4]) {
+void draw() {
   // graphic commands to redraw the complete screen should be placed here  
   u8g.setFont(u8g_font_6x10);
-  //u8g.setFont(u8g_font_5x7);
-  //u8g.setFont(u8g_font_osb21);
   u8g_uint_t yOffset = 7;
-  u8g.drawStr(0, 10, "Score: 123456");
+  char buffer[21];
+  sprintf(buffer, "Score: %d", score);
+  u8g.drawStr(0, 10, buffer);
   u8g.drawStr(0,yOffset + 10, " -------------------");
   for (u8g_uint_t i = 0; i < 4; i++) {
-    u8g.drawStr(0, yOffset + 22+12*i -6, draw_grid_row(grid[i]).c_str());
+    char buffer[21];
+    sprintf(buffer,"|%4d|%4d|%4d|%4d|", grid[i][0], grid[i][1], grid[i][2], grid[i][3]);
+    u8g.drawStr(0, yOffset + 22+12*i -6, buffer);
     u8g.drawStr(0, yOffset + 22+12*i, " -------------------");
   }
 }
 
-String draw_grid_row(int row[]) {
-  char buffer[21];
-  sprintf(buffer,"|%4d|%4d|%4d|%4d|", row[0], row[1], row[2], row[3]);
-  return buffer;
-}
-
 int generateNewTileValue() {
-	return 2 + 2 * (int) random(1);
+	return 2 + 2 * (int) random(2);
 }
 
 int getRandomCoordinate() {
 	return random (4);
 }
 
-void spawnTile(int **grid) {
+void spawnTile() {
 	bool success = false;
 	while(!success) {
 		int x = getRandomCoordinate();
 		int y = getRandomCoordinate();
 
 		if(grid[x][y] == 0) {
-			grid[x][y] = getNewTileValue();
+			grid[x][y] = generateNewTileValue();
 			success = true;
 		}
 	}
 	occupiedTiles++;
 }
 
-bool isEmptyRow(int[] row) {
+bool isEmptyRow(int *row) {
 	boolean isEmpty = true;
 	for (int i = 0; i < 4; i++) {
 		isEmpty &= (row[i] == 0);
@@ -72,7 +68,7 @@ bool isEmptyRow(int[] row) {
 	return isEmpty;
 }
 
-void transpose(int **grid) {
+void transpose() {
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 4; j++) {
 			if (i != j) {
@@ -84,81 +80,143 @@ void transpose(int **grid) {
 	}
 }
 
-void merge(int **grid, int direction) {
+void merge(int direction) {
 	if (direction == UP || direction == DOWN) {
-		transpose(grid);
+		transpose();
 	}
 	
 	for(int i = 0; i < 4; i++) {
-		mergeRow(grid[i], int direction);
+		mergeRow(i, direction);	
 	}
 
 	if (direction == UP || direction == DOWN) {
-		transposa(grid);
+		transpose();
 	}
 }
 
-void getSuccessorIndex(int *row, int currentIndex) {
+int getSuccessorIndex(int i, int currentIndex) {
 	int succ = currentIndex + 1;
-	while (succ < 4 && row[succ] == 0) {
+	while (succ < 4 && grid[i][succ] == 0) {
 		succ++;
 	}
 	return succ;
 }
 
 void reverse(int *row) {
-	int temp = row[0];
-	for (int i = 1; i < 4; i++) {
-		row[i-1] = row[i];
+	int clone[4];
+	for (int i = 0; i < 4; i++){
+		clone[i] = row[i];
 	}
-	row[3] = temp;
+	for (int i = 0; i < 4; i++) {
+		row[3-i] = clone[i];
+	}
 }
 
-void mergeRow(int *row, int direction) {
+void mergeRow(int i, int direction) {
 	int currentIndex = 0;
 	int mergedRow[4] = {0, 0, 0, 0};
-	int mergedNum = 0;
+	int mergedNum = 0; 
 
 	if (direction == DOWN || direction == RIGHT) {
-		reverse(row);
+		reverse(grid[i]);
 	}
 
-	while (currentIndex < 4 && row[currentIndex] == 0) {
-		currentIndex++;
-	}
-	if (currentIdex == 4) {
+	currentIndex = getSuccessorIndex(i, -1);
+  
+	if (currentIndex == 4) {
 		// All tiles are empty.
 		return;
 	}
 
 	// Now the current tile must be non-empty.
 	while(currentIndex < 4) {
-		if(currentIndex = 3) {
-			// If we have reached the last tile, we add it to the list of merged tiles.
-			mergedRow[mergedNum] = row[currentIndex];
-			break;
-		}
-		int successorIndex = getSuccessorIndex(row, currentIndex);
-		if (row[currentIndex] == row[successorIndex]) {
-			// Two matchint tiles found, we perform a merge.
-			int sum = row[currentIndex] + row[successorIndex];
+		int successorIndex = getSuccessorIndex(i, currentIndex);
+		if (successorIndex < 4 && grid[i][currentIndex] == grid[i][successorIndex]) {
+			// Two matching tiles found, we perform a merge.
+			int sum = grid[i][currentIndex] + grid[i][successorIndex];
 			score += sum;
 			occupiedTiles--;
 			mergedRow[mergedNum] = sum;
 			mergedNum++;	
-			currentIndex = getSuccessorIndex(row, successor);
+			currentIndex = getSuccessorIndex(i, successorIndex);
 		} else {
-			mergedRow[mergedNum] = row[currentIndex];
+			mergedRow[mergedNum] = grid[i][currentIndex];
 			mergedNum++;
 			currentIndex = successorIndex;
 		}
 	}
 
-	if (direction == DOWN || direction == RIGHT) {
-		for(int i = 0; i < 4; i++) {
-			row[3-i] = mergedRow[i];
+	for(int j = 0; j < 4; j++) {
+		if (direction == DOWN || direction == RIGHT) {
+			grid[i][3-j] = mergedRow[j];
+		} else {
+			grid[i][j] = mergedRow[j];
 		}
 	}
+}
+void takeTurn(int direction) {
+	int **oldGrid = allocateGrid();
+	copy(grid, oldGrid);
+	merge(direction);
+
+	if (theGridChangedFrom(oldGrid)) {
+		spawnTile();
+	}
+}
+
+bool isBoardFull() {
+	return occupiedTiles >= 16;
+}
+
+bool isGameOver() {
+	return isBoardFull() && noMovePossible();
+}
+
+bool theGridChangedFrom(int **oldGrid) {
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			if (grid[i][j] != oldGrid[i][j]) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool noMovePossible() {
+	// Preserve the state
+	int currentState = allocateGrid();
+	copy(grid, currentState);
+	int currentScore = score;
+	int currentOccupied = occupiedTiles;
+
+	boolean noMoves = true;
+	for (int direction = 0; direction < 4; direction++) {
+		merge(direction);
+		noMoves &= !theGridChangedFrom(currentState);
+		copy(currentState, grid);
+	}
+
+	// Restore the state
+	score = currentScore;
+	occupiedTiles = currentOccupied;
+	return noMoves;
+}
+
+void copy(int **source, int **destination) {
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			destination[i][j] = source[i][j];
+		}
+	}
+}
+
+int **allocateGrid() {
+	int **g = malloc (4 * sizeof(int));
+  for (int i = 0; i < 4; i++) {
+		g[i] = malloc (4 * sizeof(int));
+  }
+	return g;
 }
 
 
@@ -185,21 +243,42 @@ void setup(void) {
   }
   
   pinMode(8, OUTPUT);
+	
+	grid = allocateGrid();	
 
-
-	grid = malloc(4 * sizeof(int));
   for (int i = 0; i < 4; i++) {
-		grid[i] = malloc(4 *sizeof(int));
+    for (int j = 0; j < 4; j++) {
+      grid[i][j] = 0;
+    }
   }
 }
 
 void loop(void) {
   // picture loop
+  spawnTile();
   u8g.firstPage();  
-  do {
-    draw(grid);
-  } while( u8g.nextPage() );
+    do {
+      draw();
+    } while( u8g.nextPage() );
+    delay(1000);
+  merge(LEFT);
+  u8g.firstPage();  
+    do {
+      draw();
+    } while( u8g.nextPage() );
+    delay(1000);
   
-  // rebuild the picture after some delay
-  delay(50);
+  
+  while(isGameOver()){
+    //int direction = random(4);
+    //takeTurn(LEFT);
+    spawnTile();
+    
+    
+
+  }
+
+
+
+  
 }
