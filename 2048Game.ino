@@ -15,12 +15,17 @@ This is a simple 2048 game for arduino on 128x64 OLED display.
 #define DOWN 2
 #define LEFT 3
 
-U8GLIB_SH1106_128X64 u8g(13, 11, 10, 9, 8);  // SW SPI Com: SCK = 13, MOSI = 11, CS = 10, A0 = 9
+U8GLIB_SH1106_128X64 u8g(5, 6, 10, 8, 7);  // SW SPI Com: SCK = 13, MOSI = 11, CS = 10, A0 = 9
 
 // Initialise the grid and counter variables.
 int **grid;
 int score = 0;
 int occupiedTiles = 0;
+
+int leftButtonPin = 9;
+int downButtonPin = 13;
+int upButtonPin = 12;
+int rightButtonPin = 11;
 
 void draw() {
   // graphic commands to redraw the complete screen should be placed here  
@@ -28,7 +33,7 @@ void draw() {
   u8g_uint_t yOffset = 7;
   char buffer[21];
   sprintf(buffer, "Score: %d", score);
-  u8g.drawStr(0, 10, buffer);
+  u8g.drawStr(5, 7, buffer);
   u8g.drawStr(0,yOffset + 10, " -------------------");
   for (u8g_uint_t i = 0; i < 4; i++) {
     char buffer[21];
@@ -36,6 +41,15 @@ void draw() {
     u8g.drawStr(0, yOffset + 22+12*i -6, buffer);
     u8g.drawStr(0, yOffset + 22+12*i, " -------------------");
   }
+}
+void drawGameOver() {
+  // graphic commands to redraw the complete screen should be placed here  
+  u8g.setFont(u8g_font_6x10);
+  u8g_uint_t yOffset = 7;
+  char buffer[21];
+  sprintf(buffer, "Score: %d", score);
+  u8g.drawStr(5, 10, buffer);
+  u8g.drawStr(30,yOffset + 20, "Game Over!");
 }
 
 int generateNewTileValue() {
@@ -69,15 +83,18 @@ bool isEmptyRow(int *row) {
 }
 
 void transpose() {
+  int **transposed = allocateGrid();
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 4; j++) {
-			if (i != j) {
-				int temp = grid[i][j];
-				grid[i][j] = grid[j][i];
-				grid[j][i] = temp;
-			}
+				transposed[j][i] = grid[i][j];
 		}
 	}
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+				grid[i][j] = transposed[i][j];
+		}
+	}
+	freeGrid(transposed);
 }
 
 void merge(int direction) {
@@ -154,6 +171,13 @@ void mergeRow(int i, int direction) {
 		}
 	}
 }
+
+void freeGrid(int **g) {
+	for (int i = 0; i < 4; i++) {
+		free(g[i]);
+	}
+	free(g);
+}
 void takeTurn(int direction) {
 	int **oldGrid = allocateGrid();
 	copy(grid, oldGrid);
@@ -162,6 +186,7 @@ void takeTurn(int direction) {
 	if (theGridChangedFrom(oldGrid)) {
 		spawnTile();
 	}
+	freeGrid(oldGrid);
 }
 
 bool isBoardFull() {
@@ -196,6 +221,7 @@ bool noMovePossible() {
 		noMoves &= !theGridChangedFrom(currentState);
 		copy(currentState, grid);
 	}
+	freeGrid(currentState);
 
 	// Restore the state
 	score = currentScore;
@@ -223,7 +249,8 @@ int **allocateGrid() {
 void setup(void) {
   
   // flip screen, if required
-  // u8g.setRot180();
+  u8g.setRot180();
+	Serial.begin(9600);
   
   // set SPI backup if required
   //u8g.setHardwareBackup(u8g_backup_avr_spi);
@@ -243,6 +270,10 @@ void setup(void) {
   }
   
   pinMode(8, OUTPUT);
+  pinMode(leftButtonPin, INPUT);
+  pinMode(downButtonPin, INPUT);
+  pinMode(upButtonPin, INPUT);
+  pinMode(rightButtonPin, INPUT);
 	
 	grid = allocateGrid();	
 
@@ -253,32 +284,60 @@ void setup(void) {
   }
 }
 
+int leftButton;
+int downButton;
+int upButton;
+int rightButton;
+
 void loop(void) {
   // picture loop
   spawnTile();
-  u8g.firstPage();  
-    do {
-      draw();
-    } while( u8g.nextPage() );
-    delay(1000);
-  merge(LEFT);
-  u8g.firstPage();  
-    do {
-      draw();
-    } while( u8g.nextPage() );
-    delay(1000);
-  
-  
-  while(isGameOver()){
-    //int direction = random(4);
-    //takeTurn(LEFT);
-    spawnTile();
-    
-    
+	u8g.firstPage();  
+	do {
+		draw();
+	} while( u8g.nextPage() );
 
+  while(!isGameOver()) {
+		leftButton=digitalRead(leftButtonPin);
+		downButton=digitalRead(downButtonPin);
+		upButton=digitalRead(upButtonPin);
+		rightButton=digitalRead(rightButtonPin);
+		//Serial.print(leftButton);
+		//Serial.print(downButton);
+		//Serial.print(upButton);
+		//Serial.println(rightButton);
+		int turn;
+		bool inputRegistered = false;
+
+
+		if (!leftButton) {
+			turn = LEFT;
+			inputRegistered = true;
+		}
+		if (!downButton) {
+			turn = DOWN;
+			inputRegistered = true;
+		}
+		if (!upButton) {
+			turn = UP;
+			inputRegistered = true;
+		}
+		if (!rightButton) {
+			turn = RIGHT;
+			inputRegistered = true;
+		}
+
+		if (inputRegistered) {
+      takeTurn(turn);
+			u8g.firstPage();  
+			do {
+				draw();
+			} while( u8g.nextPage() );
+			delay(150);
+		}
   }
-
-
-
-  
+		u8g.firstPage();  
+		do {
+			drawGameOver();
+		} while( u8g.nextPage() );
 }
