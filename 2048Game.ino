@@ -27,6 +27,26 @@ int downButtonPin = 13;
 int upButtonPin = 12;
 int rightButtonPin = 11;
 
+void str_replace(char *src, char *oldchars, char *newchars) { // utility string function
+  char *p = strstr(src, oldchars);
+  char buf[30];
+  do {
+    if (p) {
+      memset(buf, '\0', strlen(buf));
+      if (src == p) {
+        strcpy(buf, newchars);
+        strcat(buf, p + strlen(oldchars));
+      } else {
+        strncpy(buf, src, strlen(src) - strlen(p));
+        strcat(buf, newchars);
+        strcat(buf, p + strlen(oldchars));
+      }
+      memset(src, '\0', strlen(src));
+      strcpy(src, buf);
+    }
+  } while (p && (p = strstr(src, oldchars)));
+}
+
 void draw() {
   // graphic commands to redraw the complete screen should be placed here  
   u8g.setFont(u8g_font_6x10);
@@ -38,8 +58,11 @@ void draw() {
   for (u8g_uint_t i = 0; i < 4; i++) {
     char buffer[21];
     sprintf(buffer,"|%4d|%4d|%4d|%4d|", grid[i][0], grid[i][1], grid[i][2], grid[i][3]);
+    str_replace(buffer, "   0", "    ");
     u8g.drawStr(0, yOffset + 22+12*i -6, buffer);
-    u8g.drawStr(0, yOffset + 22+12*i, " -------------------");
+    if(i != 3) {
+      u8g.drawStr(0, yOffset + 22+12*i, " -------------------");
+    }
   }
 }
 void drawGameOver() {
@@ -57,7 +80,7 @@ int generateNewTileValue() {
 }
 
 int getRandomCoordinate() {
-	return random (4);
+	return random (100) % 4;
 }
 
 void spawnTile() {
@@ -247,10 +270,9 @@ int **allocateGrid() {
 
 
 void setup(void) {
-  
+  randomSeed(analogRead(0));
   // flip screen, if required
   u8g.setRot180();
-	Serial.begin(9600);
   
   // set SPI backup if required
   //u8g.setHardwareBackup(u8g_backup_avr_spi);
@@ -302,6 +324,10 @@ void loop(void) {
 		downButton=digitalRead(downButtonPin);
 		upButton=digitalRead(upButtonPin);
 		rightButton=digitalRead(rightButtonPin);
+    u8g.firstPage();  
+    do {
+      draw();
+    } while( u8g.nextPage() );
 		//Serial.print(leftButton);
 		//Serial.print(downButton);
 		//Serial.print(upButton);
@@ -335,6 +361,7 @@ void loop(void) {
 			} while( u8g.nextPage() );
 			delay(150);
 		}
+   delay(50);
   }
 		u8g.firstPage();  
 		do {
